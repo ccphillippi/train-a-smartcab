@@ -167,21 +167,22 @@ class LearningAgent(Agent):
         deadline = self.env.get_deadline(self)
 
         # Update state
-        state = self._get_state(self.next_waypoint)
+        self.state = self._get_state(self.next_waypoint)
 
         # Select action according to policy
-        action, debug_info = self.choose_action(state, self.best_only)
+        action, debug_info = self.choose_action(self.state, self.best_only)
 
         # Execute action and get reward
         reward = self.env.act(self, action)
 
         # fail to award completion when taking suboptimal/illegal route
         if reward < 12 and reward > 2:
-            print 'Remapping Reward: %s, %s, %s' % (reward, self.next_waypoint, action)
+            print 'Remapping Reward: %s, %s, %s' % (
+                reward, self.next_waypoint, action)
             reward -= 10
 
         # Learn policy based on state, action, reward
-        key = (state, action)
+        key = (self.state, action)
         Q_prev = self.Q[key]
 
         new_state = self._get_state(self.planner.next_waypoint())
@@ -223,17 +224,20 @@ class LearningAgent(Agent):
                 "LearningAgent.update(): deadline = {}, state = {}, "
                 "action = {}, reward = {}, Q_change = {}, "
             ).format(
-                deadline, state, action, reward,
+                deadline, self.state, action, reward,
                 self.Q[key] - Q_prev)  # [debug]
         elif reward == 0.:
             # if stopped when should have right turned on red
-            if (state.light == 'red') and (state.waypoint == 'right'):
+            if (
+                (self.state.light == 'red') and
+                (self.state.waypoint == 'right')
+            ):
                 self.suboptimals[self.trial] += 1
             # should have left turned on green
             elif (
-                (state.light == 'green') and
-                (state.waypoint == 'left') and
-                (state.oncoming is None)
+                (self.state.light == 'green') and
+                (self.state.waypoint == 'left') and
+                (self.state.oncoming is None)
             ):
                 self.suboptimals[self.trial] += 1
             else:
@@ -248,7 +252,7 @@ def run():
     """Run the agent for a finite number of trials."""
 
     # Set up environment and agent
-    e = Environment(num_dummies=20)  # create environment (also adds some dummy traffic)
+    e = Environment()  # create environment (also adds some dummy traffic)
     a = e.create_agent(LearningAgent)  # create agent
     e.set_primary_agent(a, enforce_deadline=True)  # specify agent to track
     # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
@@ -256,9 +260,10 @@ def run():
     Simulator(e, update_delay=0., display=False).run(n_trials=100)
 
     a.set_best_only()
+    a.reset_stats()
 
     # Now simulate it
-    sim = Simulator(e, update_delay=0.5, display=True)  # create simulator (uses pygame when display=True, if available)
+    sim = Simulator(e, update_delay=0.2, display=True)  # create simulator (uses pygame when display=True, if available)
     # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
     sim.run(n_trials=100)  # run for a specified number of trials
